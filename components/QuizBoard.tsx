@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { KanaChar, KanaType, Question, QuizResult, QuizSettings, QuizMode } from '../types';
+import { KanaChar, KanaType, Question, QuizResult, QuizSettings, QuizMode, MistakeItem } from '../types';
 import { KANA_DATA } from '../constants';
 
 interface QuizBoardProps {
@@ -16,6 +16,9 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
   const [isAnimating, setIsAnimating] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   
+  // 用來記錄詳細錯誤資訊
+  const [mistakeDetails, setMistakeDetails] = useState<MistakeItem[]>([]);
+  
   // Handwriting/Flashcard specific state
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -28,7 +31,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(char);
       
-      // Attempt to set a better voice
       const voices = window.speechSynthesis.getVoices();
       const jpVoice = voices.find(v => 
         v.lang.toLowerCase().includes('ja') && 
@@ -37,7 +39,7 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       if (jpVoice) utterance.voice = jpVoice;
 
       utterance.lang = 'ja-JP';
-      utterance.rate = 0.8; // Slightly slower for clarity
+      utterance.rate = 0.8; 
       window.speechSynthesis.speak(utterance);
     }
   }, []);
@@ -45,32 +47,28 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
   // Initialize Quiz
   useEffect(() => {
     const generateQuestions = () => {
-      // 1. Filter by Category
       let filteredData = KANA_DATA.filter(k => settings.categories.includes(k.category));
       if (filteredData.length === 0) filteredData = KANA_DATA.slice(0, 46);
 
-      // 2. Shuffle (This ensures unique correct answers within the slice)
       const shuffledData = [...filteredData].sort(() => 0.5 - Math.random());
       
       const newQuestions: Question[] = shuffledData.map((correctItem) => {
         let questionType: 'TO_ROMAJI' | 'TO_KANA';
         let targetScript: 'HIRAGANA' | 'KATAKANA' | undefined;
 
-        // Determine Mode Logic
         if (settings.mode === QuizMode.FLASHCARD) {
-            questionType = 'TO_ROMAJI'; // Show Kana, User says sound (reveals Romaji)
+            questionType = 'TO_ROMAJI'; 
         } else if (settings.mode === QuizMode.HANDWRITING) {
-            questionType = 'TO_KANA'; // Show Romaji, Write Kana
+            questionType = 'TO_KANA'; 
             if (settings.kanaType === KanaType.HIRAGANA) targetScript = 'HIRAGANA';
             else if (settings.kanaType === KanaType.KATAKANA) targetScript = 'KATAKANA';
             else targetScript = Math.random() > 0.5 ? 'HIRAGANA' : 'KATAKANA';
         } else if (settings.mode === QuizMode.LISTENING) {
-            questionType = 'TO_KANA'; // Hear audio, pick Kana
+            questionType = 'TO_KANA'; 
              if (settings.kanaType === KanaType.HIRAGANA) targetScript = 'HIRAGANA';
             else if (settings.kanaType === KanaType.KATAKANA) targetScript = 'KATAKANA';
             else targetScript = Math.random() > 0.5 ? 'HIRAGANA' : 'KATAKANA';
         } else {
-            // CHOICE Mode
             questionType = Math.random() > 0.5 ? 'TO_ROMAJI' : 'TO_KANA';
             
             if (questionType === 'TO_KANA') {
@@ -80,11 +78,10 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
             }
         }
         
-        // Generate options (For CHOICE and LISTENING)
         let options: string[] = [];
         if (settings.mode === QuizMode.CHOICE || settings.mode === QuizMode.LISTENING) {
             const distractors = filteredData
-              .filter(k => k.romaji !== correctItem.romaji) // Ensure correct answer isn't in distractors
+              .filter(k => k.romaji !== correctItem.romaji) 
               .sort(() => 0.5 - Math.random())
               .slice(0, 3);
             
@@ -105,14 +102,13 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
         };
       });
 
-      // Limit to 20 questions
       setQuestions(newQuestions.slice(0, 20));
     };
 
     generateQuestions();
   }, [settings]);
 
-  // Audio Mode Auto-play (LISTENING)
+  // Audio & Canvas Effects
   useEffect(() => {
     if (settings.mode === QuizMode.LISTENING && questions[currentIndex]) {
         const timer = setTimeout(() => {
@@ -122,21 +118,19 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
     }
   }, [currentIndex, questions, settings.mode, playAudio]);
 
-  // Flashcard Mode Auto-play on Reveal
   useEffect(() => {
     if (settings.mode === QuizMode.FLASHCARD && revealed && questions[currentIndex]) {
         playAudio(questions[currentIndex].correct.hiragana);
     }
   }, [revealed, settings.mode, questions, currentIndex, playAudio]);
 
-  // Canvas Reset Logic
   useEffect(() => {
     if (settings.mode === QuizMode.HANDWRITING && !revealed) {
        clearCanvas();
     }
   }, [currentIndex, revealed, settings.mode]);
 
-  // --- Handlers ---
+  // Handlers
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (revealed) return;
     const canvas = canvasRef.current;
@@ -207,6 +201,34 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       setFeedback('correct');
     } else {
       setWrongAnswers(prev => [...prev, currentQ.correct]);
+      
+      let correctAnswerDisplay = '';
+      if (currentQ.questionType === 'TO_ROMAJI') {
+        correctAnswerDisplay = currentQ.correct.romaji;
+      } else {
+        correctAnswerDisplay = currentQ.targetScript === 'HIRAGANA' 
+            ? currentQ.correct.hiragana 
+            : currentQ.correct.katakana;
+      }
+
+      let questionDisplay = '';
+      if (settings.mode === QuizMode.LISTENING) {
+          questionDisplay = "🔊(聽力)";
+      } else if (currentQ.questionType === 'TO_ROMAJI') {
+          if (settings.kanaType === KanaType.HIRAGANA) questionDisplay = currentQ.correct.hiragana;
+          else if (settings.kanaType === KanaType.KATAKANA) questionDisplay = currentQ.correct.katakana;
+          else questionDisplay = `${currentQ.correct.hiragana}/${currentQ.correct.katakana}`;
+      } else {
+          questionDisplay = currentQ.correct.romaji;
+      }
+
+      setMistakeDetails(prev => [...prev, {
+        id: Date.now(),
+        questionContent: questionDisplay,
+        userAnswerContent: answer,
+        correctAnswerContent: correctAnswerDisplay
+      }]);
+
       setFeedback('wrong');
       if (navigator.vibrate) navigator.vibrate(200);
     }
@@ -222,11 +244,21 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
 
   const handleSelfCheckGrade = (correct: boolean) => {
       const currentQ = questions[currentIndex];
+      if (!currentQ) return; 
+
       if (correct) {
           setScore(prev => prev + 1);
           setFeedback('correct');
       } else {
           setWrongAnswers(prev => [...prev, currentQ.correct]);
+          
+          setMistakeDetails(prev => [...prev, {
+            id: Date.now(),
+            questionContent: currentQ.correct.romaji,
+            userAnswerContent: "忘記了/寫錯了", 
+            correctAnswerContent: `${currentQ.correct.hiragana} / ${currentQ.correct.katakana}`
+          }]);
+
           setFeedback('wrong');
           if (navigator.vibrate) navigator.vibrate(200);
       }
@@ -246,14 +278,18 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
         onComplete({
           total: questions.length,
           correct: score + (feedback === 'correct' ? 1 : 0),
-          wrongItems: feedback === 'correct' ? wrongAnswers : [...wrongAnswers, questions[currentIndex].correct]
+          wrongItems: feedback === 'correct' ? wrongAnswers : [...wrongAnswers, questions[currentIndex].correct],
+          mistakes: mistakeDetails
         });
       }
   };
 
   if (questions.length === 0) return <div className="flex justify-center items-center h-64 text-indigo-500">載入考題中...</div>;
 
+  // 【🔥🔥🔥 關鍵修正: 防呆煞車 🔥🔥🔥】
   const currentQ = questions[currentIndex];
+  if (!currentQ) return null; // 如果題目沒了，直接停止渲染，等待切換頁面
+
   const progress = ((currentIndex + 1) / questions.length) * 100;
 
   // --- Display Logic ---
@@ -266,7 +302,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       displayChar = ''; 
       subLabel = '聽音辨字';
   } else if (currentQ.questionType === 'TO_ROMAJI') {
-      // Show Kana (FLASHCARD or CHOICE)
       if (settings.kanaType === KanaType.HIRAGANA) displayChar = currentQ.correct.hiragana;
       else if (settings.kanaType === KanaType.KATAKANA) displayChar = currentQ.correct.katakana;
       else {
@@ -277,7 +312,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
           subLabel = '請唸出讀音';
       }
   } else {
-      // TO_KANA (HANDWRITING or CHOICE or LISTENING)
       displayChar = currentQ.correct.romaji;
       
       if (settings.mode === QuizMode.HANDWRITING) {
@@ -295,7 +329,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
 
   return (
     <div className="w-full max-w-md mx-auto px-4 py-6 flex flex-col h-[85vh]">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <button onClick={onExit} className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1 px-2 py-1 hover:bg-indigo-50 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -314,10 +347,7 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
         </div>
       </div>
 
-      {/* Card & Content */}
       <div className="flex-1 flex flex-col items-center">
-        
-        {/* Main Display Area */}
         <div 
             onClick={() => (isListening || (settings.mode === QuizMode.FLASHCARD && revealed)) && playAudio(currentQ.correct.hiragana)}
             className={`relative w-full bg-white rounded-3xl shadow-xl p-6 text-center mb-6 border border-gray-50 flex flex-col items-center justify-center min-h-[160px] 
@@ -331,7 +361,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
           )}
 
           {isListening ? (
-              // Audio Mode Display
               <div className="flex flex-col items-center animate-pulse-slow">
                    <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-10 h-10 text-indigo-500">
@@ -341,13 +370,11 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
                    <p className="text-sm font-bold text-indigo-400">點擊播放</p>
               </div>
           ) : (
-              // Visual Mode Display
               <h2 className="text-7xl font-black text-gray-800 mb-2">{displayChar}</h2>
           )}
           
           {subLabel && <p className="text-gray-400 text-sm font-medium mt-2">{subLabel}</p>}
           
-          {/* Answer Reveal (For Flashcard) */}
           {settings.mode === QuizMode.FLASHCARD && revealed && (
               <div className="mt-4 animate-slide-up">
                   <p className="text-3xl font-bold text-indigo-600">{currentQ.correct.romaji}</p>
@@ -357,7 +384,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
               </div>
           )}
 
-          {/* Audio Button (Choice Mode Only - TO_ROMAJI) */}
           {!isListening && settings.mode === QuizMode.CHOICE && currentQ.questionType === 'TO_ROMAJI' && (
             <button 
                 onClick={(e) => { e.stopPropagation(); playAudio(currentQ.correct.hiragana); }}
@@ -370,7 +396,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
           )}
         </div>
 
-        {/* --- CHOICE / LISTENING MODE --- */}
         {(settings.mode === QuizMode.CHOICE || settings.mode === QuizMode.LISTENING) && (
             <div className="grid grid-cols-2 gap-4 w-full">
               {currentQ.options.map((option, idx) => (
@@ -392,7 +417,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
             </div>
         )}
 
-        {/* --- FLASHCARD (SELF-CHECK) MODE --- */}
         {settings.mode === QuizMode.FLASHCARD && (
             <div className="w-full flex-1 flex flex-col justify-end pb-8">
                 <div className="h-20 w-full">
@@ -423,7 +447,6 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
             </div>
         )}
 
-        {/* --- HANDWRITING MODE --- */}
         {settings.mode === QuizMode.HANDWRITING && (
             <div className="w-full flex-1 flex flex-col">
                 <div className="relative flex-1 bg-white rounded-2xl border-2 border-dashed border-gray-300 overflow-hidden touch-none mb-4">
