@@ -8,12 +8,18 @@ interface ResultScreenProps {
 }
 
 const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) => {
+  // 1. 安全檢查：如果沒有成績資料，顯示載入中或錯誤，防止白畫面
+  if (!result) {
+    return <div className="p-10 text-center text-red-500">找不到成績資料</div>;
+  }
+
+  // 2. 計算分數
   const percentage = Math.round((result.correct / result.total) * 100);
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-6 py-10 flex flex-col items-center animate-fade-in pb-20">
+    <div className="w-full max-w-2xl mx-auto px-6 py-10 flex flex-col items-center pb-20">
       
-      {/* 成績卡片 */}
+      {/* 成績卡片 (拿掉動畫 class 避免卡住) */}
       <div className="bg-white rounded-3xl shadow-xl p-8 w-full text-center border border-gray-100 mb-8">
         <p className="text-gray-500 uppercase tracking-widest text-xs font-bold mb-2">測驗結果</p>
         <div className="flex items-center justify-center mb-4">
@@ -53,7 +59,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
       </div>
 
       {/* 錯誤列表 (只在有錯時顯示) */}
-      {result.wrongItems.length > 0 && (
+      {result.wrongItems && result.wrongItems.length > 0 && (
         <div className="w-full mb-8">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
             <span className="bg-red-100 text-red-500 p-1 rounded-md mr-2">
