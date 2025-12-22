@@ -12,11 +12,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
   const percentage = Math.round((result.correct / result.total) * 100);
   const [loadingAi, setLoadingAi] = useState(false);
   const [aiTips, setAiTips] = useState<Mnemonic[] | null>(null);
-  
-  // [新增] Email 相關的狀態
-  const [email, setEmail] = useState('');
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
 
   const handleGetAiTips = async () => {
     setLoadingAi(true);
@@ -28,22 +23,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
         alert("AI 分析失敗，請稍後再試");
     }
     setLoadingAi(false);
-  };
-
-  // [新增] 處理寄送 Email 的函式
-  const handleSendReport = async () => {
-      if (!email) {
-          alert("請輸入 Email");
-          return;
-      }
-      setSendingEmail(true);
-      
-      // 模擬寄送過程 (這裡未來可以接上 EmailJS 或 Google Apps Script)
-      setTimeout(() => {
-          setSendingEmail(false);
-          setEmailSent(true);
-          alert(`成績單已寄送到 ${email} (模擬成功)`);
-      }, 1500);
   };
 
   return (
@@ -153,31 +132,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
           )}
         </div>
       )}
-
-      {/* [新增] Email Report Section */}
-      <div className="w-full bg-gray-50 rounded-2xl p-6 mb-8 border border-gray-200">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">寄送成績單</h3>
-          <div className="flex gap-2">
-              <input 
-                type="email" 
-                placeholder="輸入您的 Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={emailSent || sendingEmail}
-                className="flex-1 px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-              <button 
-                onClick={handleSendReport}
-                disabled={emailSent || sendingEmail}
-                className={`px-4 py-2 rounded-xl font-bold text-white transition-colors flex items-center gap-2
-                    ${emailSent ? 'bg-green-500' : 'bg-indigo-600 hover:bg-indigo-700'}
-                `}
-              >
-                {sendingEmail ? '寄送中...' : emailSent ? '已寄出' : '寄送'}
-              </button>
-          </div>
-          {emailSent && <p className="text-xs text-green-600 mt-2 font-bold">✓ 成績單已發送到您的信箱！</p>}
-      </div>
 
       {/* Actions */}
       <div className="flex w-full gap-4">
