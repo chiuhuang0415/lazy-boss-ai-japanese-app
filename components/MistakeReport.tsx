@@ -14,8 +14,8 @@ interface MistakeReportProps {
   onClose: () => void;
 }
 
-// 您的 Google Apps Script 部署網址
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbydLeQQli-h9R1N9ycyT21FGDbmdzGhwc3_Suw0a-NzEseDSL4lUiPL9KxjWnmqLDAtBA/exec";
+// ✅ 已更新：這裡換成了您最新的 Google Apps Script 網址
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzCDdjoE8eyNtBxpWLJUiN1KYWsPPXkTkYPyiv5uXw_WBtK01IGsvktxhTrP0wC569JdQ/exec";
 
 const MistakeReport: React.FC<MistakeReportProps> = ({ mistakes, onClose }) => {
   const [email, setEmail] = useState('');
