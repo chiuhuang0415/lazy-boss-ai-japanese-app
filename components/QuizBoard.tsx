@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { KanaChar, KanaType, Question, QuizResult, QuizSettings, QuizMode } from '../types';
+import { KanaChar, KanaType, Question, QuizResult, QuizSettings, QuizMode, MistakeItem } from '../types'; // [修改] 加入 MistakeItem
 import { KANA_DATA } from '../constants';
 
 interface QuizBoardProps {
@@ -15,6 +15,9 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
   const [wrongAnswers, setWrongAnswers] = useState<KanaChar[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  
+  // [新增] 用來記錄詳細錯誤資訊 (為了錯題急救包)
+  const [mistakeDetails, setMistakeDetails] = useState<MistakeItem[]>([]);
   
   // Handwriting/Flashcard specific state
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -207,6 +210,40 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       setFeedback('correct');
     } else {
       setWrongAnswers(prev => [...prev, currentQ.correct]);
+      
+      // [新增] 記錄詳細錯誤資訊 (選擇題)
+      // 這裡我們要判斷題目的「正確答案」顯示文字是什麼
+      let correctAnswerDisplay = '';
+      if (currentQ.questionType === 'TO_ROMAJI') {
+        correctAnswerDisplay = currentQ.correct.romaji;
+      } else {
+        // 如果是選假名，顯示正確的假名
+        correctAnswerDisplay = currentQ.targetScript === 'HIRAGANA' 
+            ? currentQ.correct.hiragana 
+            : currentQ.correct.katakana;
+      }
+
+      // 題目的顯示文字 (例如題目是 ぬ，答案是 nu)
+      let questionDisplay = '';
+      if (settings.mode === QuizMode.LISTENING) {
+          questionDisplay = "🔊(聽力)";
+      } else if (currentQ.questionType === 'TO_ROMAJI') {
+          // 題目是假名
+          if (settings.kanaType === KanaType.HIRAGANA) questionDisplay = currentQ.correct.hiragana;
+          else if (settings.kanaType === KanaType.KATAKANA) questionDisplay = currentQ.correct.katakana;
+          else questionDisplay = `${currentQ.correct.hiragana}/${currentQ.correct.katakana}`;
+      } else {
+          // 題目是羅馬拼音
+          questionDisplay = currentQ.correct.romaji;
+      }
+
+      setMistakeDetails(prev => [...prev, {
+        id: Date.now(),
+        questionContent: questionDisplay,
+        userAnswerContent: answer,
+        correctAnswerContent: correctAnswerDisplay
+      }]);
+
       setFeedback('wrong');
       if (navigator.vibrate) navigator.vibrate(200);
     }
@@ -227,6 +264,16 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
           setFeedback('correct');
       } else {
           setWrongAnswers(prev => [...prev, currentQ.correct]);
+          
+          // [新增] 記錄詳細錯誤資訊 (自我檢測)
+          // 因為沒有「選錯的選項」，我們標記為「自我評估錯誤」
+          setMistakeDetails(prev => [...prev, {
+            id: Date.now(),
+            questionContent: currentQ.correct.romaji, // 題目通常是羅馬拼音或假名
+            userAnswerContent: "忘記了/寫錯了", 
+            correctAnswerContent: `${currentQ.correct.hiragana} / ${currentQ.correct.katakana}`
+          }]);
+
           setFeedback('wrong');
           if (navigator.vibrate) navigator.vibrate(200);
       }
@@ -243,10 +290,12 @@ const QuizBoard: React.FC<QuizBoardProps> = ({ settings, onComplete, onExit }) =
       if (currentIndex < questions.length - 1) {
         setCurrentIndex(prev => prev + 1);
       } else {
+        // [修改] 測驗結束時，將 mistakeDetails 也回傳出去
         onComplete({
           total: questions.length,
           correct: score + (feedback === 'correct' ? 1 : 0),
-          wrongItems: feedback === 'correct' ? wrongAnswers : [...wrongAnswers, questions[currentIndex].correct]
+          wrongItems: feedback === 'correct' ? wrongAnswers : [...wrongAnswers, questions[currentIndex].correct],
+          mistakes: mistakeDetails // 回傳詳細錯誤列表
         });
       }
   };
