@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Mnemonic, QuizResult } from '../types';
-import { generateStudyGuide } from '../services/geminiService';
+import React from 'react';
+import { QuizResult } from '../types';
 
 interface ResultScreenProps {
   result: QuizResult;
@@ -10,29 +9,16 @@ interface ResultScreenProps {
 
 const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) => {
   const percentage = Math.round((result.correct / result.total) * 100);
-  const [loadingAi, setLoadingAi] = useState(false);
-  const [aiTips, setAiTips] = useState<Mnemonic[] | null>(null);
-
-  const handleGetAiTips = async () => {
-    setLoadingAi(true);
-    try {
-        const tips = await generateStudyGuide(result.wrongItems);
-        setAiTips(tips);
-    } catch (error) {
-        console.error(error);
-        alert("AI 分析失敗，請稍後再試");
-    }
-    setLoadingAi(false);
-  };
 
   return (
     <div className="w-full max-w-2xl mx-auto px-6 py-10 flex flex-col items-center animate-fade-in pb-20">
       
-      {/* Score Card */}
+      {/* 成績卡片 */}
       <div className="bg-white rounded-3xl shadow-xl p-8 w-full text-center border border-gray-100 mb-8">
         <p className="text-gray-500 uppercase tracking-widest text-xs font-bold mb-2">測驗結果</p>
         <div className="flex items-center justify-center mb-4">
           <div className="relative">
+            {/* 圓形進度條 SVG */}
             <svg className="w-32 h-32 transform -rotate-90">
               <circle
                 className="text-gray-100"
@@ -66,7 +52,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
         </p>
       </div>
 
-      {/* Wrong Answers & AI Help */}
+      {/* 錯誤列表 (只在有錯時顯示) */}
       {result.wrongItems.length > 0 && (
         <div className="w-full mb-8">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -86,54 +72,10 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ result, onRetry, onHome }) 
               </div>
             ))}
           </div>
-
-          {!aiTips ? (
-            <button 
-              onClick={handleGetAiTips}
-              disabled={loadingAi}
-              className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 font-bold"
-            >
-              {loadingAi ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  AI 老師分析中...
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path fillRule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813a3.75 3.75 0 002.576-2.576l.813-2.846A.75.75 0 019 4.5zM9 15a.75.75 0 01.75.75v1.5h1.5a.75.75 0 010 1.5h-1.5v1.5a.75.75 0 01-1.5 0v-1.5h-1.5a.75.75 0 010-1.5h1.5v-1.5A.75.75 0 019 15z" clipRule="evenodd" />
-                  </svg>
-                  生成記憶口訣與例句
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="space-y-4 animate-slide-up">
-              {aiTips.map((tip, idx) => (
-                <div key={idx} className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
-                    <div className="flex items-baseline gap-2 mb-2">
-                        <h4 className="font-bold text-xl text-indigo-700">{tip.character}</h4>
-                        <span className="text-xs text-indigo-400 bg-white px-2 py-0.5 rounded-full border border-indigo-100">口訣</span>
-                    </div>
-                    <p className="text-gray-700 mb-3 font-medium">{tip.mnemonic}</p>
-                    <div className="bg-white p-3 rounded-lg text-sm border border-indigo-50">
-                        <span className="text-gray-500 text-xs block mb-1">例句</span>
-                        <div className="flex justify-between items-center">
-                            <span className="font-bold text-gray-800">{tip.exampleWord}</span>
-                            <span className="text-gray-500">{tip.exampleMeaning}</span>
-                        </div>
-                    </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Actions */}
+      {/* 按鈕區 */}
       <div className="flex w-full gap-4">
         <button
           onClick={onHome}
